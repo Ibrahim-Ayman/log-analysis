@@ -1,0 +1,41 @@
+# ============================================================
+# dbt Sources — Silver Zone in MotherDuck
+# ============================================================
+# The nginx_silver view is created by scripts/setup_motherduck.py
+# and reads Parquet files from S3 via httpfs.
+# ============================================================
+
+version: 2
+
+sources:
+  - name: nginx_raw
+    description: "Silver zone data from S3 Parquet files, accessed via MotherDuck httpfs"
+    schema: "main"
+    tables:
+      - name: nginx_silver
+        description: "Parsed and deduplicated nginx access logs in Parquet format"
+        columns:
+          - name: remote_addr
+            description: "Client IP address"
+            tests:
+              - not_null
+          - name: datetime
+            description: "Request timestamp"
+            tests:
+              - not_null
+          - name: method
+            description: "HTTP method (GET, POST, etc.)"
+          - name: url
+            description: "Requested URL path"
+          - name: protocol
+            description: "HTTP protocol version"
+          - name: status
+            description: "HTTP response status code"
+            tests:
+              - not_null
+          - name: body_bytes_sent
+            description: "Response body size in bytes"
+          - name: http_referer
+            description: "HTTP Referer header"
+          - name: user_agent
+            description: "Client User-Agent string"

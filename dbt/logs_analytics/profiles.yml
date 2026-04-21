@@ -1,0 +1,8 @@
+motherduck:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "md:{{ env_var('MOTHERDUCK_DATABASE', 'nginx_analytics') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+      extensions:
+        - httpfs

@@ -1,0 +1,71 @@
+version: 2
+
+models:
+  - name: stg_nginx_logs
+    description: "Staging view parsing raw nginx silver view"
+    
+  - name: dim_ip
+    description: "Unique IP Addresses and Hostnames"
+    columns:
+      - name: ip_sk
+        description: "Primary key for IP dimension"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_status
+    description: "HTTP Status Dimensions"
+    columns:
+      - name: status_sk
+        description: "Primary key for Status dimension"
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_date
+    description: "Date Dimension"
+    columns:
+      - name: date_sk
+        tests:
+          - unique
+          - not_null
+
+  - name: dim_request
+    description: "HTTP Request Dimension"
+    columns:
+      - name: request_sk
+        tests:
+          - unique
+          - not_null
+
+  - name: fact_requests
+    description: "Core Fact Table storing every web request metric"
+    columns:
+      - name: request_id
+        tests:
+          - unique
+          - not_null
+      - name: ip_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_ip')
+              field: ip_sk
+      - name: status_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_status')
+              field: status_sk
+      - name: date_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_date')
+              field: date_sk
+      - name: request_sk
+        tests:
+          - not_null
+          - relationships:
+              to: ref('dim_request')
+              field: request_sk

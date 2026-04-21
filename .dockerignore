@@ -1,0 +1,15 @@
+.git
+.gitignore
+.env
+*.md
+*.duckdb
+*.duckdb.wal
+__pycache__
+*.py[cod]
+.venv
+venv
+.idea
+.vscode
+logs/
+tests/
+superset/dashboards/

@@ -1,0 +1,60 @@
+# ===== Secrets =====
+.env
+*.env.local
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+
+# ===== DuckDB =====
+*.duckdb
+*.duckdb.wal
+
+# ===== AWS =====
+.aws/
+
+# ===== Airflow =====
+logs/
+airflow-webserver.pid
+dags/__pycache__/*
+
+# ===== Spark =====
+spark/metastore_db/
+spark/derby.log
+spark-warehouse/
+
+# ===== dbt =====
+dbt/nginx_analytics/target/
+dbt/nginx_analytics/dbt_packages/
+dbt/nginx_analytics/logs/
+
+# ===== Superset =====
+superset/superset.db
+superset/superset-home/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ===== OS =====
+.DS_Store
+Thumbs.db
+
+# ===== Docker =====
+docker/airflow/tmp/
+docker/spark/tmp/
+
+# ==== Still working on it ====
+tests/*
+superset/dashboards/*
+

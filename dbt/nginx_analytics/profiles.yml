@@ -1,0 +1,20 @@
+# ============================================================
+# dbt Profiles — MotherDuck Connection
+# ============================================================
+# Uses dbt-duckdb adapter connecting to MotherDuck cloud.
+# MOTHERDUCK_TOKEN is read from environment variable.
+# ============================================================
+
+nginx_analytics:
+  outputs:
+    dev:
+      type: duckdb
+      path: "md:{{ env_var('MOTHERDUCK_DATABASE', 'nginx_analytics') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+      threads: 4
+
+    prod:
+      type: duckdb
+      path: "md:{{ env_var('MOTHERDUCK_DATABASE', 'nginx_analytics') }}?motherduck_token={{ env_var('MOTHERDUCK_TOKEN') }}"
+      threads: 4
+
+  target: dev

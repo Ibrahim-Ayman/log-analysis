@@ -1,0 +1,32 @@
+name: 'logs_analytics'
+version: '1.0.0'
+config-version: 2
+
+profile: 'motherduck'
+
+model-paths: ["models"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  logs_analytics:
+    # pre-hook applies to ALL models — injects S3 credentials into MotherDuck before any query
+    +pre-hook: |
+      CREATE OR REPLACE SECRET s3_creds (
+          TYPE S3,
+          KEY_ID '{{ env_var("AWS_ACCESS_KEY_ID") }}',
+          SECRET '{{ env_var("AWS_SECRET_ACCESS_KEY") }}',
+          REGION '{{ env_var("AWS_DEFAULT_REGION", "us-east-1") }}'
+      );
+
+    staging:
+      +materialized: view         # Lightweight virtual layer, no storage cost
+
+    core:
+      +materialized: table        # Kimball Dimensions + Fact — stored as fast tables in MotherDuck
+
+    dashboard:
+      +materialized: table        # Pre-aggregated chart tables — fast reads for Superset
+
+
+

@@ -1,0 +1,32 @@
+# ============================================================
+# dbt Project — nginx_analytics
+# ============================================================
+# Connects to MotherDuck (cloud DuckDB) and transforms
+# Silver zone data into analytics-ready marts.
+# ============================================================
+
+name: "nginx_analytics"
+version: "1.0.0"
+config-version: 2
+
+profile: "nginx_analytics"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+models:
+  nginx_analytics:
+    staging:
+      +materialized: view
+    marts:
+      +materialized: table
+    aggregations:
+      +materialized: table
