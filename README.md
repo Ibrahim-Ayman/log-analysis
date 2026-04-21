@@ -6,7 +6,7 @@
 
 ---
 
-**This is a Graduation Project for the [DataTalks.Club Data Engineering Zoomcamp 2024](https://datatalks.club/blog/data-engineering-zoomcamp.html).**
+**This is a Graduation Project for the [DataTalks.Club Data Engineering Zoomcamp 2026](https://datatalks.club/blog/data-engineering-zoomcamp.html).**
 
 The goal of this project is to build a production-grade pipeline that extracts, processes, and visualizes massive web server access logs. It is specifically designed to stream data completely through memory with **zero local disk usage** for data files, making it highly cost-effective and scalable.
 
