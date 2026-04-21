@@ -1,149 +1,126 @@
-# 🔍 Nginx Log Analysis Platform
+<div align="center">
+  <img src="https://img.shields.io/badge/DataTalks.Club-Data%20Engineering%20Zoomcamp-blue?style=for-the-badge&logo=data&logoColor=white" alt="DataTalks.Club Data Engineering Zoomcamp" />
+  <h1>🌐 Nginx Log Analysis Lakehouse</h1>
+  <p><i>An automated, end-to-end Data Engineering pipeline scaling 3.5GB of web logs using a modern zero-copy cloud Lakehouse architecture.</i></p>
+</div>
 
-A production-grade Data Engineering pipeline that processes **3.3 GB** of web server access logs through a modern lakehouse architecture — streaming data through memory with **zero local disk usage** for data files.
+---
+
+**This is a Graduation Project for the [DataTalks.Club Data Engineering Zoomcamp 2024](https://datatalks.club/blog/data-engineering-zoomcamp.html).**
+
+The goal of this project is to build a production-grade pipeline that extracts, processes, and visualizes massive web server access logs. It is specifically designed to stream data completely through memory with **zero local disk usage** for data files, making it highly cost-effective and scalable.
 
 ## 🏗️ Architecture
 
-```
-Kaggle API (cloud)
-    ↓  streaming via boto3 (RAM only, ~50 MB buffer)
-S3 Raw Zone   [s3://bucket/nginx/raw/]         ← 3.3 GB lives here
-    ↓  s3a:// Spark reads partitions
-Spark (Docker) — parse, cast, deduplicate
-    ↓  write parquet, snappy compressed
-S3 Silver Zone [s3://bucket/nginx/silver/]     ← ~600 MB (columnar, compressed)
-    ↓  MotherDuck httpfs reads on-demand
-MotherDuck (Cloud DuckDB) — in-memory OLAP
-    ↓  dbt models run inside MotherDuck
-dbt marts — fct_requests, fct_errors, agg_traffic_hourly, dim_endpoints
-    ↓  Superset connects via duckdb-engine
-Apache Superset (Docker) — dashboards served to browser
+The pipeline orchestrates a flow from Raw Data to a fully modeled Kimball Star Schema, capped by an interactive BI dashboard.
+
+```mermaid
+graph TD
+    Kaggle[☁️ Kaggle API] -->|Boto3 Stream| Raw[(S3 Raw Zone)]
+    Raw -->|Read Partitions| Spark[⚡ Apache Spark]
+    CSV[client_hostname.csv] -->|Broadcast Join| Spark
+    Spark -->|Snappy Parquet| Silver[(S3 Silver Zone)]
+    Silver -->|Zero-Copy View| MD[🦆 MotherDuck DWH]
+    MD -->|Run Models| dbt[🏗️ dbt Core]
+    dbt -->|Star Schema| MD
+    MD -->|SQLAlchemy| BI[📊 Apache Superset]
 ```
 
-## 📊 Tech Stack
+## 📊 End-to-End Tech Stack
 
-| Layer | Technology | Purpose |
+| Phase | Technology | Purpose |
 |-------|-----------|---------|
-| **Orchestration** | Apache Airflow 2.9 | DAG scheduling & monitoring |
-| **Ingestion** | Kaggle API + boto3 | Stream data to S3 |
-| **Storage** | AWS S3 (Free Tier) | Raw & Silver zones |
-| **Processing** | Apache Spark 3.5 | Parse, transform, deduplicate |
-| **Warehouse** | MotherDuck (DuckDB Cloud) | OLAP queries, free Lite tier |
-| **Modeling** | dbt (dbt-duckdb) | Staging → Marts → Aggregations |
-| **Visualization** | Apache Superset | Interactive dashboards |
-| **Containers** | Docker Compose | Local development environment |
+| **Orchestration** | 🌬️ **Apache Airflow 2.9** | Containerized DAG scheduling & failure management |
+| **Ingestion** | 🐍 **Python / boto3**   | In-memory data streaming to Cloud |
+| **Storage** | 🪣 **AWS S3**          | Data Lake (Raw / Silver Parquet) |
+| **Processing** | ⚡ **Apache Spark 3.5** | Fast CSV parsing, enrichment, and deduplication |
+| **Data Warehouse**| 🦆 **MotherDuck**     | Serverless OLAP connected directly to S3 |
+| **Transformation**| 🏗️ **dbt** (dbt-duckdb) | `staging` → `core` (Kimball) → `dashboard` aggregations |
+| **Visualization** | 📊 **Apache Superset**| Real-time interactive dashboards with Dark Theme |
+
+---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+- Docker Desktop
+- AWS account (Access Keys)
+- [MotherDuck](https://motherduck.com/) account (Service Token)
+- Kaggle account (API Token `kaggle.json`)
 
-- Docker Desktop (with WSL2 backend)
-- AWS account (Free Tier)
-- MotherDuck account (free Lite plan)
-- Kaggle account (API key)
-
-### 1. Clone & Configure
-
+### 1. Configure the Environment
 ```bash
-git clone <repo-url>
+git clone https://github.com/Ibrahim-Ayman/log-analysis.git
 cd log-analysis
 
-# Copy environment template and fill in your credentials
+# Create your .env file
 cp .env.example .env
-# Edit .env with your real AWS, MotherDuck, and Kaggle credentials
+# Open .env and carefully add your API keys
 ```
 
-### 2. Start Services
-
+### 2. Stand up the Infrastructure
 ```bash
 docker compose up -d
 ```
+*Bootstraps Airflow, Spark Master, Spark Workers, Postgres, and Superset.*
 
-### 3. Access UIs
-
-| Service | URL | Default Credentials |
-|---------|-----|-------------------|
-| Airflow | http://localhost:8080 | admin / admin |
-| Spark Master | http://localhost:8081 | — |
-| Superset | http://localhost:8088 | admin / admin |
-
-### 4. Setup Cloud Resources
-
+### 3. Initialize the Pipeline
 ```bash
-# Create S3 bucket and prefixes
+# 1. Create S3 raw and silver buckets
 docker compose exec airflow-webserver python /opt/airflow/scripts/setup_s3.py
 
-# Test MotherDuck connectivity
-docker compose exec airflow-webserver python /opt/airflow/scripts/test_motherduck.py
-
-# Initialize MotherDuck database and views
-docker compose exec airflow-webserver python /opt/airflow/scripts/setup_motherduck.py
+# 2. Register datasets and MotherDuck connection in Superset
+docker compose exec superset python /app/superset_register.py
 ```
 
-### 5. Run the Pipeline
+### 4. Trigger the DAGs (Airflow)
+Go to `http://localhost:8080` (admin/admin).
+Trigger the DAG **`nginx_ingestion`**. It will automatically cascade:
+*   `nginx_ingestion` (Extract/Load to Bronze)
+*   `nginx_processing` (Spark Transform to Silver)
+*   `nginx_warehouse` (MotherDuck View Setup + dbt Models + Data Quality Tests)
 
-Trigger DAG A (`nginx_ingestion`) from the Airflow UI. It will automatically chain:
-- **DAG A** → Ingest data from Kaggle to S3
-- **DAG B** → Spark processes raw → silver Parquet
-- **DAG C** → dbt models run on MotherDuck → Superset refresh
+### 5. Access the Dashboard
+Go to `http://localhost:8088` (admin/admin). Your datasets are pre-registered! Apply the `nginx_dark_theme.css` and arrange your charts.
 
-## 📁 Project Structure
+---
 
-```
+## 📁 Repository Structure
+
+```text
 log-analysis/
-├── .env.example              # Credential template (committed)
-├── .gitignore
-├── .dockerignore
-├── docker-compose.yml        # All services
-├── README.md
-├── docker/
-│   ├── airflow/Dockerfile    # Airflow + kaggle + boto3 + dbt
-│   ├── spark/
-│   │   ├── Dockerfile        # Spark + hadoop-aws JARs
-│   │   └── spark-defaults.conf
-│   └── superset/
-│       ├── Dockerfile        # Superset + duckdb-engine
-│       └── superset-init.sh
 ├── dags/
-│   ├── nginx_ingestion.py    # DAG A: Kaggle → S3
-│   ├── nginx_processing.py   # DAG B: Spark transform
-│   └── nginx_warehouse.py    # DAG C: dbt + Superset
+│   ├── nginx_ingestion.py      # DAG A: Kaggle → S3
+│   ├── nginx_processing.py     # DAG B: Spark Transformations
+│   └── nginx_warehouse.py      # DAG C: View Mapping & dbt Execution
+├── dbt/logs_analytics/
+│   ├── models/
+│   │   ├── staging/            # Base views and surrogate key hashing
+│   │   ├── core/               # Kimball Dimensional Model (Dim/Fact)
+│   │   └── dashboard/          # Pre-aggregated tables for BI
+│   └── schema.yml              # Source mapping & Data Quality tests
+├── docker/
+│   ├── airflow/ Dockerfile     # Custom Airflow + boto3 + dbt
+│   ├── spark/ Dockerfile       # Spark + Hadoop-AWS jars
+│   └── superset/ Dockerfile    # Superset + duckdb-engine
+├── scripts/                    # Registration & Setup utilities
 ├── spark/
-│   └── transform.py          # Spark job
-├── dbt/nginx_analytics/
-│   ├── dbt_project.yml
-│   ├── profiles.yml
-│   └── models/
-│       ├── staging/
-│       ├── marts/
-│       └── aggregations/
-├── superset/dashboards/      # Exported dashboard JSON
-├── scripts/
-│   ├── setup_s3.py           # Create S3 bucket
-│   ├── test_motherduck.py    # Verify MotherDuck
-│   └── setup_motherduck.py   # Init DB + views
-└── tests/
+│   └── transform.py            # Ultra-fast PySpark CSV processor
+└── superset/                   
+    └── dashboards/             # Custom CSS themes
 ```
 
-## 💾 Disk Usage
+---
 
-| Component | Local SSD | Cloud |
-|-----------|-----------|-------|
-| Docker images | ~2.5 GB | — |
-| Docker volumes (metadata) | ~120 MB | — |
-| Raw data | 0 bytes | 3.3 GB (S3) |
-| Silver data | 0 bytes | ~600 MB (S3) |
-| MotherDuck warehouse | 0 bytes | ~800 MB (cloud) |
-| **Total** | **~2.6 GB** | **~4.7 GB ($0)** |
+## 💡 Key Design Decisions
 
-## 🔐 Security
+1. **Zero-Local-Disk IO**: The `boto3` stream literally fetches from Kaggle and streams via multipart chunks directly to S3 memory buffers. We bypass the `tmp` storage entirely to survive 3.5GB logs on a free-tier VPS.
+2. **Spark BroadCasting**: Hostname enrichment relies on Spark's `broadcast()` join, significantly optimizing execution plans for IP lookups.
+3. **MotherDuck Zero-Copy**: The Data Warehouse does not copy data. The `nginx_silver_view` is an `httpfs` mapping directly over the S3 partitioned compressed `.parquet` files.
+4. **Strict Dimensional Architecture**: Transformed into a Kimball Star Schema for optimal query aggregation speed.
 
-- All credentials are in `.env` (never committed)
-- `.env.example` provides a safe template
-- MotherDuck token injected via environment variable
-- AWS credentials use IAM best practices
-- No secrets in Docker images or `docker-compose.yml`
+---
 
-## 📄 License
-
-MIT
+<div align="center">
+  <i>Created by Ibrahim Ayman</i>
+</div>
