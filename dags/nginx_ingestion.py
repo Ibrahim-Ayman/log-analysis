@@ -66,7 +66,7 @@ def _get_bucket():
 
 
 # ---------------------------------------------------------------------------
-# Idempotency check
+# Idempotency helpers
 # ---------------------------------------------------------------------------
 def _s3_key_exists(s3_client, bucket, key):
     """Return True if the S3 key already exists."""
@@ -77,6 +77,28 @@ def _s3_key_exists(s3_client, bucket, key):
         if e.response["Error"]["Code"] == "404":
             return False
         raise
+
+
+def _find_raw_file_anywhere(s3_client, bucket, filename):
+    """
+    Scan the entire nginx/raw/ prefix for a file by name, regardless of
+    which year/month partition it was uploaded under.
+
+    Returns the S3 key if found, or None.
+
+    This is the correct idempotency strategy: the upload date baked into
+    the partition (e.g. year=2026/month=04) will NEVER match
+    datetime.utcnow() on a later re-run, so a fixed-key check would
+    always miss existing data and trigger a 3.3 GB re-download.
+    """
+    paginator = s3_client.get_paginator("list_objects_v2")
+    for page in paginator.paginate(Bucket=bucket, Prefix=S3_RAW_PREFIX + "/"):
+        for obj in page.get("Contents", []):
+            key = obj["Key"]
+            # Match the bare filename at the end of any path
+            if key.endswith("/" + filename) or key == filename:
+                return key
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -148,34 +170,56 @@ def stream_kaggle_to_s3(**context):
 
     The /tmp directory lives inside the container's overlay filesystem.
     It is NOT persisted to the host SSD.
+
+    Idempotency strategy:
+        Scan the ENTIRE nginx/raw/ prefix for each expected filename.
+        We do NOT use datetime.utcnow() as the lookup key because the
+        data was uploaded under a different month partition and a
+        fixed-date check would always miss it, triggering a 3.3 GB
+        re-download on every subsequent DAG run.
     """
     bucket = _get_bucket()
     s3_client = _get_s3_client()
+
+    # --- Idempotency: scan raw prefix for each required file ---
+    log.info("Checking S3 raw zone for existing data (partition-agnostic scan)...")
+    found_keys = {}
+    missing_files = []
+
+    for filename in RAW_FILES:
+        existing_key = _find_raw_file_anywhere(s3_client, bucket, filename)
+        if existing_key:
+            size = s3_client.head_object(Bucket=bucket, Key=existing_key)["ContentLength"]
+            log.info(
+                f"  ✓ Found:   s3://{bucket}/{existing_key} "
+                f"({size / 1024 / 1024:.1f} MB)"
+            )
+            found_keys[filename] = existing_key
+        else:
+            log.info(f"  ✗ Missing: {filename}")
+            missing_files.append(filename)
+
+    if not missing_files:
+        log.info("=" * 60)
+        log.info("  ✓ All raw files already exist in S3 — skipping download.")
+        log.info("=" * 60)
+        return {"status": "skipped", "s3_keys": found_keys}
+
+    log.info(f"  Missing files: {missing_files} — proceeding with download.")
+
+    # Build upload keys for missing files only, partitioned by current date
     now = datetime.utcnow()
     partition = f"year={now.year}/month={now.month:02d}"
-
-    # Build S3 keys for each file
-    s3_keys = {}
-    for filename, subfolder in RAW_FILES.items():
-        s3_keys[filename] = f"{S3_RAW_PREFIX}/{partition}/{subfolder}/{filename}"
-
-    # --- Idempotency: check if ALL files already exist ---
-    all_exist = True
-    for filename, s3_key in s3_keys.items():
-        exists = _s3_key_exists(s3_client, bucket, s3_key)
-        if exists:
-            log.info(f"✓ Already exists: s3://{bucket}/{s3_key}")
-        else:
-            all_exist = False
-
-    if all_exist:
-        log.info("✓ All files already in S3 — skipping upload.")
-        return {"status": "skipped", "s3_keys": s3_keys}
+    s3_keys = {
+        filename: f"{S3_RAW_PREFIX}/{partition}/{subfolder}/{filename}"
+        for filename, subfolder in RAW_FILES.items()
+        if filename in missing_files
+    }
 
     # --- Authenticate & download ---
     api = _authenticate_kaggle()
 
-    log.info(f"Downloading dataset '{KAGGLE_DATASET}' ...")
+    log.info(f"Downloading dataset '{KAGGLE_DATASET}' (only missing files: {missing_files}) ...")
     tmp_dir = "/tmp/kaggle_download"
     os.makedirs(tmp_dir, exist_ok=True)
     api.dataset_download_files(KAGGLE_DATASET, path=tmp_dir, unzip=False)
@@ -189,7 +233,7 @@ def stream_kaggle_to_s3(**context):
     zip_size = os.path.getsize(zip_path)
     log.info(f"✓ Downloaded zip: {zip_path} ({zip_size / 1024 / 1024:.1f} MB)")
 
-    # --- Extract and upload each file ---
+    # --- Extract and upload only the missing files ---
     results = {}
     with zipfile.ZipFile(zip_path, "r") as zf:
         zip_contents = zf.namelist()
@@ -204,7 +248,7 @@ def stream_kaggle_to_s3(**context):
 
             zip_entry = matching[0]
 
-            # Skip if already uploaded (individual file idempotency)
+            # Final guard: re-check the specific target key before uploading
             if _s3_key_exists(s3_client, bucket, s3_key):
                 log.info(f"  ✓ Already exists: s3://{bucket}/{s3_key} — skipping.")
                 results[filename] = {"status": "skipped", "s3_key": s3_key}

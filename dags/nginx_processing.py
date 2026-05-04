@@ -27,6 +27,8 @@ log = logging.getLogger(__name__)
 # Container name of the Spark master (from docker-compose service name)
 SPARK_MASTER_CONTAINER = "log-analysis-spark-master-1"
 
+SILVER_S3_PREFIX = "nginx/silver/"
+
 default_args = {
     "owner": "data-engineering",
     "depends_on_past": False,
@@ -36,6 +38,36 @@ default_args = {
 }
 
 
+def _s3_client():
+    """Build a boto3 S3 client from environment variables."""
+    return boto3.client(
+        "s3",
+        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
+        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
+        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
+    )
+
+
+def _silver_exists(s3, bucket):
+    """
+    Return (exists: bool, file_count: int, total_mb: float).
+
+    Scans the ENTIRE nginx/silver/ prefix. Any Parquet file found means
+    Silver is already populated — no need to re-run Spark.
+    Uses MaxKeys=5 so the call completes in milliseconds.
+    """
+    response = s3.list_objects_v2(
+        Bucket=bucket,
+        Prefix=SILVER_S3_PREFIX,
+        MaxKeys=5,
+    )
+    contents = [obj for obj in response.get("Contents", []) if obj["Key"].endswith(".parquet")]
+    if contents:
+        total_bytes = sum(obj["Size"] for obj in contents)
+        return True, len(contents), round(total_bytes / 1024 / 1024, 1)
+    return False, 0, 0.0
+
+
 def submit_spark_job(**context):
     """
     Submit transform.py to the Spark cluster by docker exec-ing into
@@ -43,6 +75,9 @@ def submit_spark_job(**context):
 
     The Docker socket is mounted into the Airflow container, allowing
     it to call `docker exec` on sibling containers.
+
+    Idempotency: if ANY Parquet file already exists under nginx/silver/,
+    the Spark job is skipped entirely — no 10-hour re-run on existing data.
     """
     import subprocess
 
@@ -50,6 +85,18 @@ def submit_spark_job(**context):
     aws_key = os.environ["AWS_ACCESS_KEY_ID"]
     aws_secret = os.environ["AWS_SECRET_ACCESS_KEY"]
     aws_region = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+
+    # --- Pre-check: skip if Silver already populated ---
+    s3 = _s3_client()
+    exists, file_count, total_mb = _silver_exists(s3, bucket)
+    if exists:
+        log.info("=" * 60)
+        log.info("  Silver zone pre-check: data already exists — SKIPPING Spark job.")
+        log.info(f"  Found {file_count}+ Parquet files ({total_mb} MB sampled).")
+        log.info(f"  Path: s3://{bucket}/{SILVER_S3_PREFIX}")
+        log.info("  To force a re-run, manually delete the Silver prefix in S3.")
+        log.info("=" * 60)
+        return {"status": "skipped", "reason": "silver_already_exists", "sampled_files": file_count}
 
     cmd = [
         "docker", "exec",
@@ -114,16 +161,11 @@ def submit_spark_job(**context):
 def verify_silver_zone(**context):
     """Verify that Silver zone Parquet files exist in S3."""
     bucket = os.environ["S3_BUCKET_NAME"]
-    s3 = boto3.client(
-        "s3",
-        region_name=os.environ.get("AWS_DEFAULT_REGION", "us-east-1"),
-        aws_access_key_id=os.environ["AWS_ACCESS_KEY_ID"],
-        aws_secret_access_key=os.environ["AWS_SECRET_ACCESS_KEY"],
-    )
+    s3 = _s3_client()
 
     response = s3.list_objects_v2(
         Bucket=bucket,
-        Prefix="nginx/silver/",
+        Prefix=SILVER_S3_PREFIX,
         MaxKeys=50,
     )
 

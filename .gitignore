@@ -1,6 +1,8 @@
 # ===== Secrets =====
 .env
 *.env.local
+# Always commit the example template so new users know what to fill in
+!.env.example
 
 # ===== Python =====
 __pycache__/

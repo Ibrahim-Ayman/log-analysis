@@ -1,28 +1,67 @@
+# =============================================================================
+# docker-compose.yml — Nginx Log Analysis Platform
+# =============================================================================
+# Prerequisites:
+#   1. Copy .env.example → .env and fill in all values.
+#   2. Run:  docker compose up --build -d
+#
+# Services:
+#   postgres          → Airflow metadata DB (port 5432)
+#   airflow-init      → One-shot: DB migrate + admin user creation
+#   airflow-webserver → Airflow UI            (port 8080)
+#   airflow-scheduler → DAG scheduler
+#   spark-master      → Spark cluster manager (port 9090)
+#   spark-worker-1    → Spark worker
+#   spark-worker-2    → Spark worker
+#   superset          → Dashboard UI          (port 8088)
+# =============================================================================
+
+# ---------------------------------------------------------------------------
+# Shared Airflow anchor — all Airflow services inherit this block
+# ---------------------------------------------------------------------------
 x-airflow-common: &airflow-common
   build:
     context: .
     dockerfile: docker/airflow/Dockerfile
   env_file: .env
   environment:
+    # ── Airflow core settings ──────────────────────────────────────────────
     AIRFLOW__CORE__EXECUTOR: ${AIRFLOW__CORE__EXECUTOR:-LocalExecutor}
-    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: ${AIRFLOW__DATABASE__SQL_ALCHEMY_CONN}
     AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW__CORE__FERNET_KEY}
+    AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW__WEBSERVER__SECRET_KEY}
+
+    # ── Database connection ────────────────────────────────────────────────
+    # Built dynamically from POSTGRES_* variables so there is a single
+    # source of truth. Docker Compose resolves ${VAR} from the .env file
+    # before passing the value to the container — no shell magic needed.
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: >-
+      postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+
   volumes:
     - ./dags:/opt/airflow/dags
     - ./dbt:/opt/airflow/dbt
     - ./spark:/opt/airflow/spark
     - ./scripts:/opt/airflow/scripts
     - airflow-logs:/opt/airflow/logs
+    # Mount Docker socket so Airflow can docker-exec into Spark containers
     - /var/run/docker.sock:/var/run/docker.sock
+
+  # All Airflow services wait for Postgres to pass its healthcheck before
+  # attempting any database connection.
   depends_on:
     postgres:
       condition: service_healthy
+
   networks:
     - pipeline
 
+# =============================================================================
 services:
 
+  # ---------------------------------------------------------------------------
   # PostgreSQL — Airflow metadata database
+  # ---------------------------------------------------------------------------
   postgres:
     image: postgres:15-alpine
     environment:
@@ -32,34 +71,51 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "9800:5432"
+    # ── Healthcheck ──────────────────────────────────────────────────────────
+    # pg_isready exits 0 only when Postgres is fully accepting connections.
+    # Airflow services use condition: service_healthy so they will NOT start
+    # until this check passes — eliminating the "DB not ready" race condition.
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-airflow}" ]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-airflow} -d ${POSTGRES_DB:-airflow}",
+        ]
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 10s
+    restart: unless-stopped
     networks:
       - pipeline
 
-  # Airflow Init — One-shot: migrate DB + create admin user
+  # ---------------------------------------------------------------------------
+  # Airflow Init — One-shot: migrate DB schema + create admin user
+  # Runs once, completes, and is never restarted.
+  # ---------------------------------------------------------------------------
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
     command:
       - -c
       - |
+        echo "=== Running airflow db migrate ==="
         airflow db migrate
+        echo "=== Creating admin user ==="
         airflow users create \
-          --username $${AIRFLOW_ADMIN_USERNAME:-admin} \
-          --password $${AIRFLOW_ADMIN_PASSWORD:-admin} \
+          --username "${AIRFLOW_ADMIN_USERNAME:-admin}" \
+          --password "${AIRFLOW_ADMIN_PASSWORD:-admin}" \
           --firstname Admin \
           --lastname User \
           --role Admin \
-          --email $${AIRFLOW_ADMIN_EMAIL:-admin@example.com} || true
-        echo "Airflow init complete."
+          --email "${AIRFLOW_ADMIN_EMAIL:-admin@example.com}" || true
+        echo "=== Airflow init complete ==="
     restart: "no"
 
-  # Airflow Webserver — UI on port 8080
+  # ---------------------------------------------------------------------------
+  # Airflow Webserver — UI on http://localhost:8080
+  # ---------------------------------------------------------------------------
   airflow-webserver:
     <<: *airflow-common
     command: airflow webserver --port 8080
@@ -72,10 +128,15 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
+      postgres:
+        condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+    restart: unless-stopped
 
-  # Airflow Scheduler — runs DAGs
+  # ---------------------------------------------------------------------------
+  # Airflow Scheduler — picks up and executes DAG runs
+  # ---------------------------------------------------------------------------
   airflow-scheduler:
     <<: *airflow-common
     command: airflow scheduler
@@ -91,21 +152,25 @@ services:
       retries: 5
       start_period: 60s
     depends_on:
+      postgres:
+        condition: service_healthy
       airflow-init:
         condition: service_completed_successfully
+    restart: unless-stopped
 
-  # Spark Master — Cluster manager on port 8081
+  # ---------------------------------------------------------------------------
+  # Spark Master — cluster manager on http://localhost:9090
+  # ---------------------------------------------------------------------------
   spark-master:
     build:
       context: .
       dockerfile: docker/spark/Dockerfile
-    env_file: .env # shared AWS creds
+    env_file: .env
     environment:
       - SPARK_MASTER_HOST=spark-master
     command: >
-      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
-      -h spark-master
-      --properties-file /opt/spark/conf/spark-defaults.conf
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master -h
+      spark-master --properties-file /opt/spark/conf/spark-defaults.conf
     volumes:
       - ./spark:/opt/spark/jobs
     ports:
@@ -115,9 +180,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_period: 20s
+    restart: unless-stopped
     networks:
       - pipeline
 
+  # ---------------------------------------------------------------------------
+  # Spark Workers — each gets 3 GB RAM and 3 cores
+  # ---------------------------------------------------------------------------
   spark-worker-1:
     build:
       context: .
@@ -131,6 +201,7 @@ services:
         condition: service_healthy
     volumes:
       - ./spark:/opt/spark/jobs
+    restart: unless-stopped
     networks:
       - pipeline
 
@@ -147,10 +218,13 @@ services:
         condition: service_healthy
     volumes:
       - ./spark:/opt/spark/jobs
+    restart: unless-stopped
     networks:
       - pipeline
 
-  # Apache Superset — Dashboards on port 8088
+  # ---------------------------------------------------------------------------
+  # Apache Superset — Dashboards on http://localhost:8088
+  # ---------------------------------------------------------------------------
   superset:
     build:
       context: .
@@ -161,7 +235,7 @@ services:
       SUPERSET_ADMIN_PASSWORD: ${SUPERSET_ADMIN_PASSWORD:-admin}
       SUPERSET_ADMIN_EMAIL: ${SUPERSET_ADMIN_EMAIL:-admin@superset.com}
       MOTHERDUCK_TOKEN: ${MOTHERDUCK_TOKEN}
-      MOTHERDUCK_DATABASE: ${MOTHERDUCK_DATABASE}
+      MOTHERDUCK_DATABASE: ${MOTHERDUCK_DATABASE:-nginx_analytics}
     entrypoint: /bin/bash
     command: /app/superset-init.sh
     ports:
@@ -174,14 +248,16 @@ services:
       timeout: 10s
       retries: 10
       start_period: 120s
+    restart: unless-stopped
     networks:
       - pipeline
 
+# =============================================================================
 volumes:
-  postgres-data: # Airflow metadata (~50 MB)
-  airflow-logs: # Airflow task logs (~10-50 MB, rotated)
+  postgres-data: # Airflow metadata DB     (~50 MB)
+  airflow-logs: # Airflow task logs        (~10–50 MB, rotated)
   superset-data:
-    # Superset metadata (~20 MB)
+    # Superset metadata DB     (~20 MB)
 
 networks:
   pipeline:
