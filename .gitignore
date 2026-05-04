@@ -32,10 +32,9 @@ spark/derby.log
 spark-warehouse/
 
 # ===== dbt =====
-dbt/nginx_analytics/target/
-dbt/nginx_analytics/dbt_packages/
-dbt/nginx_analytics/logs/
-dbt/logs_analytics/
+dbt/logs_analytics/target/
+dbt/logs_analytics/dbt_packages/
+dbt/logs_analytics/logs/
 
 # ===== Superset =====
 superset/superset.db
