@@ -35,6 +35,7 @@ spark-warehouse/
 dbt/nginx_analytics/target/
 dbt/nginx_analytics/dbt_packages/
 dbt/nginx_analytics/logs/
+dbt/logs_analytics/
 
 # ===== Superset =====
 superset/superset.db
