@@ -38,10 +38,6 @@ dbt/logs_analytics/target/
 dbt/logs_analytics/dbt_packages/
 dbt/logs_analytics/logs/
 
-# ===== Superset =====
-superset/superset.db
-superset/superset-home/
-
 # ===== IDE =====
 .idea/
 .vscode/
