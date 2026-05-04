@@ -292,6 +292,7 @@ with DAG(
     schedule_interval=None,
     start_date=datetime(2024, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,   # must be active so TriggerDagRunOperator can execute it
     tags=["nginx", "ingestion", "phase-2"],
 ) as dag:
 

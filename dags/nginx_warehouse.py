@@ -107,6 +107,7 @@ with DAG(
     schedule_interval=None,  # Triggered by DAG B
     start_date=datetime(2024, 1, 1),
     catchup=False,
+    is_paused_upon_creation=False,   # must be active so TriggerDagRunOperator can execute it
     tags=["nginx", "motherduck", "dbt", "warehouse", "phase-4", "phase-5"],
 ) as dag:
 
