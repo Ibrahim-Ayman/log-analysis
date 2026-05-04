@@ -1,0 +1,98 @@
+.dashboard-grid {
+    max-width: 1400px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-top: 40px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+}
+
+
+.dashboard-content {
+    display: flex !important;
+    justify-content: center !important;
+}
+
+
+.big-number-value,
+[class*="big-number-value"],
+.superset-chart-big-number-number-container span {
+    font-size: 56px !important;
+    /* كان 42 */
+    font-weight: 900 !important;
+    line-height: 1.1 !important;
+    letter-spacing: 1px !important;
+    color: #ffffff !important;
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.3) !important;
+}
+
+.superset-chart-big-number-subheader,
+.big-number-subheader {
+    font-size: 14px !important;
+    color: #aeb6c2 !important;
+    margin-top: 6px !important;
+    font-weight: 500 !important;
+}
+
+
+
+.slice-header-title,
+.header-title {
+    color: #ffffff !important;
+    font-weight: 800 !important;
+}
+
+
+svg text,
+.nvd3 text,
+.tick text {
+    fill: #e8ecf3 !important;
+    color: #e8ecf3 !important;
+    font-weight: 600 !important;
+}
+
+
+.nvd3 .nv-legend text,
+.recharts-legend-item-text {
+    fill: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+
+.nvd3 .nv-bar text,
+.nvd3 .nv-pie text {
+    fill: #ffffff !important;
+    font-weight: 700 !important;
+}
+
+
+.nvd3 .nv-grid line {
+    stroke: rgba(255, 255, 255, 0.12) !important;
+}
+
+
+.dashboard-component-chart-holder {
+    background: rgba(255, 255, 255, 0.06) !important;
+    border: 1px solid rgba(255, 255, 255, 0.12) !important;
+}
+
+
+.dashboard-component-chart-holder:hover {
+    box-shadow: 0 12px 35px rgba(0, 0, 0, 0.7) !important;
+    transform: translateY(-5px);
+}
+
+.dashboard-component-header .header-title {
+    font-size: 16px !important;
+    margin-bottom: 10px !important;
+}
+
+
+.dashboard-component-chart-holder {
+    padding: 18px 20px !important;
+}
+
+
+.dashboard-component-chart-holder:first-child .big-number-value {
+    font-size: 60px !important;
+}
