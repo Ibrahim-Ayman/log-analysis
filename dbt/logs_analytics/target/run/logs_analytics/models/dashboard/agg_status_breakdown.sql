@@ -1,0 +1,23 @@
+
+  
+    
+    
+
+    create  table
+      "nginx_analytics"."main"."agg_status_breakdown__dbt_tmp"
+  
+    as (
+      
+
+-- Status class counts for donut chart
+-- Powers: "Status class breakdown" pie/donut chart
+SELECT
+    status_class,
+    COUNT(*) AS request_count
+FROM "nginx_analytics"."main"."dim_status" s
+JOIN "nginx_analytics"."main"."fact_requests" f ON s.status_sk = f.status_sk
+GROUP BY 1
+ORDER BY 2 DESC
+    );
+  
+  
