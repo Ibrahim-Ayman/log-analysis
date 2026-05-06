@@ -12,6 +12,9 @@
     <img src="https://img.shields.io/badge/Apache%20Superset-20A6C9?style=flat-square&logo=apache&logoColor=white"/>
     <img src="https://img.shields.io/badge/Docker-2496ED?style=flat-square&logo=docker&logoColor=white"/>
   </p>
+  
+  <br>
+  <img src="pipeline-animation.gif" alt="Animated Pipeline Workflow" width="100%"/>
 </div>
 
 ---
@@ -66,10 +69,6 @@ This project builds a **production-grade, cloud-native Lakehouse** that processe
 ---
 
 ## 🏗 Architecture & Workflow
-
-<div align="center">
-  <img src="pipeline-animation.gif" alt="Animated Pipeline Workflow" width="100%"/>
-</div>
 
 ### End-to-End Data Flow
 
