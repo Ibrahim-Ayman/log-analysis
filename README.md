@@ -67,6 +67,10 @@ This project builds a **production-grade, cloud-native Lakehouse** that processe
 
 ## 🏗 Architecture & Workflow
 
+<div align="center">
+  <img src="pipeline-animation.gif" alt="Animated Pipeline Workflow" width="100%"/>
+</div>
+
 ### End-to-End Data Flow
 
 ```mermaid
