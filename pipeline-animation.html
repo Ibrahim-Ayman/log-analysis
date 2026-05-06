@@ -1,0 +1,257 @@
+<![CDATA[<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Nginx Pipeline</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0b1120;font-family:'Inter',sans-serif;color:#e2e8f0;overflow:hidden;height:100vh;width:100vw}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(99,102,241,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.04) 1px,transparent 1px);background-size:40px 40px;animation:gs 20s linear infinite;z-index:0}
+@keyframes gs{to{background-position:40px 40px}}
+.scan{position:fixed;top:0;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(129,140,248,.12),transparent);z-index:20;animation:sy 8s linear infinite;pointer-events:none}
+@keyframes sy{to{top:100%}}
+
+.main{position:relative;z-index:1;height:100%;display:grid;grid-template-columns:64% 36%;grid-template-rows:auto 1fr auto;padding:8px 16px;gap:12px 16px}
+.docker-wrapper{grid-column:1;border:1px dashed rgba(96,165,250,0.5);border-radius:12px;position:relative;padding:16px 2px 4px 10px;background:rgba(96,165,250,0.02);box-shadow:inset 0 0 20px rgba(96,165,250,0.02);display:flex;flex-direction:column}
+.docker-label{position:absolute;top:-9px;left:16px;background:#0b1120;padding:0 8px;display:flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;color:#60a5fa;letter-spacing:1px;z-index:10;border:1px dashed rgba(96,165,250,0.5);border-top:none;border-radius:0 0 6px 6px}
+.hdr{grid-column:1/-1;text-align:center;margin-bottom:0}
+.hdr h1{font-size:17px;font-weight:900;background:linear-gradient(90deg,#818cf8,#c084fc,#f472b6);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hdr p{font-size:9px;color:#475569;letter-spacing:2px;text-transform:uppercase;margin-top:1px}
+
+/* LEFT: Detail pipeline */
+.left{flex:1;display:flex;flex-direction:column;gap:4px;padding-right:2px}
+.row{display:flex;align-items:center;gap:6px}
+.rl{width:76px;flex-shrink:0;text-align:right;padding-right:7px;border-right:2px solid;font-size:8.5px;font-weight:700;letter-spacing:1px;text-transform:uppercase;line-height:1.1}
+.rb{flex:1;display:flex;align-items:center;gap:5px;padding:1px 0}
+.nd{position:relative;border-radius:8px;padding:4px 8px;min-width:82px;text-align:center;border:1px solid;overflow:hidden}
+.nd .ic{font-size:14.5px;margin-bottom:1px}
+.nd .nm{font-size:9.5px;font-weight:700;white-space:nowrap}
+.nd .dt{font-size:7px;color:#94a3b8;font-family:'JetBrains Mono',monospace;line-height:1.2}
+.nd .pu{position:absolute;top:3px;right:3px;width:4px;height:4px;border-radius:50%;animation:pu 2s infinite}
+@keyframes pu{0%,100%{box-shadow:0 0 0 0 currentColor;opacity:1}50%{box-shadow:0 0 0 3px transparent;opacity:.5}}
+.nd::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.03),transparent);animation:sh 5s infinite;pointer-events:none}
+@keyframes sh{0%{transform:translateX(-100%)}40%,100%{transform:translateX(100%)}}
+.dk{position:absolute;top:1.5px;left:3.5px;font-size:6px;opacity:.8}
+.dk img{width:10px;height:10px;}
+.ic img{height:18px;width:auto;max-width:60px;filter:drop-shadow(0 0 2px rgba(255,255,255,0.3));}
+.bp-icon img{height:32px;width:auto;max-width:100px;filter:drop-shadow(0 0 4px currentColor);}
+
+.ar{width:18px;flex-shrink:0;position:relative;display:flex;align-items:center}
+.ar::before{content:'';width:100%;height:1px;position:absolute}
+.ar .bd{position:absolute;width:3px;height:3px;border-radius:50%;animation:bm 1.5s infinite linear}
+@keyframes bm{0%{left:0;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:calc(100% - 3px);opacity:0}}
+
+.vf{height:6px;display:flex;align-items:center;padding-left:78px}
+.vf .vl{width:2px;height:100%;margin-left:34px;position:relative;border-radius:1px}
+.vf .vd{position:absolute;width:3px;height:3px;border-radius:50%;animation:vm 1.2s infinite linear}
+@keyframes vm{0%{top:0;opacity:0}20%{opacity:1}80%{opacity:1}100%{top:100%;opacity:0}}
+.vf .vlb{font-size:6.5px;color:#475569;margin-left:7px;font-family:'JetBrains Mono',monospace}
+
+/* Color themes */
+.ca .rl{color:#f59e0b;border-color:#f59e0b33}.ca .nd{background:rgba(245,158,11,.08);border-color:rgba(245,158,11,.25)}.ca .pu{background:#f59e0b;color:#f59e0b44}.ca .ar::before{background:linear-gradient(90deg,#f59e0b33,#f59e0b11)}.ca .bd{background:#f59e0b}
+.ci .rl{color:#818cf8;border-color:#818cf833}.ci .nd{background:rgba(129,140,248,.08);border-color:rgba(129,140,248,.25)}.ci .pu{background:#818cf8;color:#818cf844}.ci .ar::before{background:linear-gradient(90deg,#818cf833,#818cf811)}.ci .bd{background:#818cf8}
+.cb .rl{color:#60a5fa;border-color:#60a5fa33}.cb .nd{background:rgba(96,165,250,.08);border-color:rgba(96,165,250,.25)}.cb .pu{background:#60a5fa;color:#60a5fa44}.cb .ar::before{background:linear-gradient(90deg,#60a5fa33,#60a5fa11)}.cb .bd{background:#60a5fa}
+.co .rl{color:#fb923c;border-color:#fb923c33}.co .nd{background:rgba(251,146,60,.08);border-color:rgba(251,146,60,.25)}.co .pu{background:#fb923c;color:#fb923c44}.co .ar::before{background:linear-gradient(90deg,#fb923c33,#fb923c11)}.co .bd{background:#fb923c}
+.cg .rl{color:#34d399;border-color:#34d39933}.cg .nd{background:rgba(52,211,153,.08);border-color:rgba(52,211,153,.25)}.cg .pu{background:#34d399;color:#34d39944}.cg .ar::before{background:linear-gradient(90deg,#34d39933,#34d39911)}.cg .bd{background:#34d399}
+.cp .rl{color:#f472b6;border-color:#f472b633}.cp .nd{background:rgba(244,114,182,.08);border-color:rgba(244,114,182,.25)}.cp .pu{background:#f472b6;color:#f472b644}.cp .ar::before{background:linear-gradient(90deg,#f472b633,#f472b611)}.cp .bd{background:#f472b6}
+.cc .rl{color:#22d3ee;border-color:#22d3ee33}.cc .nd{background:rgba(34,211,238,.08);border-color:rgba(34,211,238,.25)}.cc .pu{background:#22d3ee;color:#22d3ee44}.cc .ar::before{background:linear-gradient(90deg,#22d3ee33,#22d3ee11)}.cc .bd{background:#22d3ee}
+
+/* RIGHT: Big Picture */
+.right{grid-column:2;display:flex;flex-direction:column;align-items:center;justify-content:space-between;padding:6px 10px 6px 16px;overflow:hidden}
+.bp-title{font-size:10px;font-weight:700;color:#64748b;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
+
+.bp-step{display:flex;align-items:center;gap:10px;width:100%;padding:6px 12px;border-radius:10px;border:1px solid;position:relative;overflow:hidden}
+.bp-step::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.02),transparent);animation:sh 6s infinite;pointer-events:none}
+.bp-icon{font-size:28px;flex-shrink:0;filter:drop-shadow(0 0 8px currentColor)}
+.bp-text h3{font-size:12px;font-weight:800;margin-bottom:1px}
+.bp-text p{font-size:8px;color:#94a3b8;line-height:1.3;font-family:'JetBrains Mono',monospace}
+.bp-num{position:absolute;top:4px;right:8px;font-size:20px;font-weight:900;opacity:.08}
+
+.bp-arrow{display:flex;flex-direction:column;align-items:center;height:16px;position:relative}
+.bp-arrow .bp-line{width:2px;height:100%;border-radius:1px;position:relative}
+.bp-arrow .bp-dot{position:absolute;width:4px;height:4px;border-radius:50%;animation:vm 1s infinite linear}
+.bp-arrow .bp-lbl{position:absolute;right:-60px;top:2px;font-size:7px;color:#475569;font-family:'JetBrains Mono',monospace;white-space:nowrap}
+.bp-arrow::after{content:'▼';position:absolute;bottom:-5px;font-size:6px;opacity:.3}
+
+.bp-s1{background:rgba(245,158,11,.06);border-color:rgba(245,158,11,.2)}
+.bp-s1 .bp-icon{color:#f59e0b}
+.bp-s1 h3{color:#f59e0b}
+.bp-s2{background:rgba(129,140,248,.06);border-color:rgba(129,140,248,.2)}
+.bp-s2 .bp-icon{color:#818cf8}
+.bp-s2 h3{color:#818cf8}
+.bp-s3{background:rgba(251,146,60,.06);border-color:rgba(251,146,60,.2)}
+.bp-s3 .bp-icon{color:#fb923c}
+.bp-s3 h3{color:#fb923c}
+.bp-s4{background:rgba(52,211,153,.06);border-color:rgba(52,211,153,.2)}
+.bp-s4 .bp-icon{color:#34d399}
+.bp-s4 h3{color:#34d399}
+.bp-s5{background:rgba(244,114,182,.06);border-color:rgba(244,114,182,.2)}
+.bp-s5 .bp-icon{color:#f472b6}
+.bp-s5 h3{color:#f472b6}
+.bp-s6{background:rgba(34,211,238,.06);border-color:rgba(34,211,238,.2)}
+.bp-s6 .bp-icon{color:#22d3ee}
+.bp-s6 h3{color:#22d3ee}
+
+/* Footer */
+.ftr{grid-column:1/-1;display:flex;gap:14px;justify-content:center;padding:4px 0}
+.ft{display:flex;align-items:center;gap:3px;font-size:7.5px;color:#64748b}
+.ft i{width:4px;height:4px;border-radius:50%;display:inline-block;animation:bl 2.5s infinite alternate}
+@keyframes bl{0%{opacity:.3}100%{opacity:1}}
+
+/* Entrance */
+.nd,.bp-step{opacity:0;animation:eu .5s forwards}
+@keyframes eu{to{opacity:1;transform:translateY(0)}}
+</style>
+</head>
+<body>
+<div class="scan"></div>
+<div class="main">
+  <div class="hdr">
+    <h1>🌐 Nginx Log Analysis — Cloud Lakehouse Pipeline</h1>
+    <p>End-to-End Architecture • 10.2M Requests • Zero Local Disk</p>
+  </div>
+
+  <div class="docker-wrapper">
+    <div class="docker-label">
+      <img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg" style="width:14px;height:14px;">
+      DOCKER COMPOSE NETWORK
+    </div>
+    
+    <!-- LEFT PANEL: Detailed Pipeline -->
+    <div class="left">
+      <div class="row ca"><div class="rl">Data<br>Source</div><div class="rb">
+      <div class="nd" style="animation-delay:.1s"><div class="pu"></div><div class="ic">📦</div><div class="nm">Kaggle API</div><div class="dt">3.5 GB • 10.2M rows</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.15s"><div class="pu"></div><div class="ic">📄</div><div class="nm">access.log</div><div class="dt">~3.3 GB raw text</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.4s"></div></div>
+      <div class="nd" style="animation-delay:.2s"><div class="pu"></div><div class="ic">📋</div><div class="nm">hostname.csv</div><div class="dt">13 MB lookup</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#f59e0b33"><div class="vd" style="background:#f59e0b"></div></div><div class="vlb">boto3 multipart stream</div></div>
+
+    <div class="row ci"><div class="rl">Orchestration</div><div class="rb">
+      <div class="nd" style="animation-delay:.25s"><div class="dk"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg"></div><div class="pu"></div><div class="ic"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/postgresql/postgresql-original.svg"></div><div class="nm">PostgreSQL 15</div><div class="dt">Metadata :5432</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.2s"></div></div>
+      <div class="nd" style="animation-delay:.3s"><div class="dk"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg"></div><div class="pu"></div><div class="ic"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apacheairflow/apacheairflow-original.svg"></div><div class="nm">Airflow 2.9</div><div class="dt">:8080 • Scheduler</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.4s"></div></div>
+      <div class="nd" style="animation-delay:.35s"><div class="pu"></div><div class="ic">🛡️</div><div class="nm">DAG 0: Preflight</div><div class="dt">6 checks parallel</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.6s"></div></div>
+      <div class="nd" style="animation-delay:.4s"><div class="pu"></div><div class="ic">⛓️</div><div class="nm">A→B→C</div><div class="dt">Auto-chain</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#818cf833"><div class="vd" style="background:#818cf8"></div></div><div class="vlb">trigger_nginx_ingestion</div></div>
+
+    <div class="row cb"><div class="rl">Ingest<br>Bronze</div><div class="rb">
+      <div class="nd" style="animation-delay:.45s"><div class="pu"></div><div class="ic">📥</div><div class="nm">DAG A: Ingestion</div><div class="dt">Idempotent • partition-agnostic</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.5s"><div class="pu"></div><div class="ic">🪣</div><div class="nm">S3 Raw Zone</div><div class="dt">nginx/raw/year=Y/month=M/</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#60a5fa33"><div class="vd" style="background:#60a5fa"></div></div><div class="vlb">s3a:// direct read</div></div>
+
+    <div class="row co"><div class="rl">Spark<br>Process</div><div class="rb">
+      <div class="nd" style="animation-delay:.52s"><div class="pu"></div><div class="ic">⚡</div><div class="nm">DAG B: Spark</div><div class="dt">Livy / Operator</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.55s"><div class="dk"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg"></div><div class="pu"></div><div class="ic"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apachespark/apachespark-original-wordmark.svg"></div><div class="nm">Spark Master</div><div class="dt">:9090</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.58s"><div class="dk"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg"></div><div class="pu"></div><div class="ic"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apachespark/apachespark-original-wordmark.svg"></div><div class="nm">Worker ×2</div><div class="dt">3GB • 3 cores</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.3s"></div></div>
+      <div class="nd" style="animation-delay:.62s"><div class="pu"></div><div class="ic">🔄</div><div class="nm">transform.py</div><div class="dt">parse→cast→join→dedupe</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.6s"></div></div>
+      <div class="nd" style="animation-delay:.66s"><div class="pu"></div><div class="ic">🪣</div><div class="nm">S3 Silver</div><div class="dt">Snappy Parquet</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#fb923c33"><div class="vd" style="background:#fb923c"></div></div><div class="vlb">httpfs zero-copy</div></div>
+
+    <div class="row cg"><div class="rl">Warehouse</div><div class="rb">
+      <div class="nd" style="animation-delay:.7s"><div class="pu"></div><div class="ic">🦆</div><div class="nm">MotherDuck</div><div class="dt">Serverless OLAP</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.74s"><div class="pu"></div><div class="ic">🔑</div><div class="nm">S3 Secret</div><div class="dt">DuckDB credentials</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#34d39933"><div class="vd" style="background:#34d399"></div></div><div class="vlb">dbt run → test</div></div>
+
+    <div class="row cp"><div class="rl">dbt<br>Transform</div><div class="rb">
+      <div class="nd" style="animation-delay:.76s"><div class="pu"></div><div class="ic">🪄</div><div class="nm">DAG C: dbt</div><div class="dt">Cosmos execution</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.78s"><div class="pu"></div><div class="ic">📊</div><div class="nm">Staging</div><div class="dt">VIEW</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:.82s"><div class="pu"></div><div class="ic">📐</div><div class="nm">Dimensions</div><div class="dt">date•ip•req•status</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.2s"></div></div>
+      <div class="nd" style="animation-delay:.86s"><div class="pu"></div><div class="ic">⭐</div><div class="nm">Facts</div><div class="dt">fact_requests</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.4s"></div></div>
+      <div class="nd" style="animation-delay:.9s"><div class="pu"></div><div class="ic">📈</div><div class="nm">Aggs</div><div class="dt">8 tables</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.6s"></div></div>
+      <div class="nd" style="animation-delay:.94s"><div class="pu"></div><div class="ic">✅</div><div class="nm">Test</div><div class="dt">Quality</div></div>
+    </div></div>
+    <div class="vf"><div class="vl" style="background:#f472b633"><div class="vd" style="background:#f472b6"></div></div><div class="vlb">SQLAlchemy + duckdb-engine</div></div>
+
+    <div class="row cc"><div class="rl">Visualization</div><div class="rb">
+      <div class="nd" style="animation-delay:1s"><div class="dk"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/docker/docker-original.svg"></div><div class="pu"></div><div class="ic"><img src="https://raw.githubusercontent.com/apache/superset/master/superset-frontend/src/assets/branding/superset-logo-horiz.svg"></div><div class="nm">Superset</div><div class="dt">Dashboard :8088</div></div>
+      <div class="ar"><div class="bd"></div></div>
+      <div class="nd" style="animation-delay:1.05s"><div class="pu"></div><div class="ic">🔢</div><div class="nm">KPIs</div><div class="dt">10.2M • 1.61% err</div></div>
+      <div class="ar"><div class="bd" style="animation-delay:.3s"></div></div>
+      <div class="nd" style="animation-delay:1.1s"><div class="pu"></div><div class="ic">📉</div><div class="nm">Charts</div><div class="dt">8 interactive</div></div>
+    </div></div>
+  </div>
+  </div>
+
+  <!-- RIGHT PANEL: Big Picture Flow -->
+  <div class="right">
+    <div class="bp-title">⚡ What Each Step Produces</div>
+
+    <div class="bp-step bp-s1" style="animation-delay:.2s">
+      <div class="bp-icon">📦</div>
+      <div class="bp-text"><h3>Raw Download</h3><p>3.5 GB zip streamed from Kaggle<br>access.log + client_hostname.csv</p></div>
+      <div class="bp-num">1</div>
+    </div>
+
+    <div class="bp-arrow"><div class="bp-line" style="background:#f59e0b33"><div class="bp-dot" style="background:#f59e0b"></div></div></div>
+
+    <div class="bp-step bp-s2" style="animation-delay:.35s">
+      <div class="bp-icon">🛡️</div>
+      <div class="bp-text"><h3>Validated Infrastructure</h3><p>6 health checks pass → safe to proceed<br>S3 ✓ MotherDuck ✓ Spark ✓ dbt ✓ Kaggle ✓</p></div>
+      <div class="bp-num">2</div>
+    </div>
+
+    <div class="bp-arrow"><div class="bp-line" style="background:#818cf833"><div class="bp-dot" style="background:#818cf8"></div></div></div>
+
+    <div class="bp-step bp-s3" style="animation-delay:.5s">
+      <div class="bp-icon"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon@latest/icons/apachespark/apachespark-original-wordmark.svg"></div>
+      <div class="bp-text"><h3>Bronze → Silver (Parquet)</h3><p>Raw text parsed by Spark → typed, enriched,<br>deduplicated → Snappy Parquet on S3</p></div>
+      <div class="bp-num">3</div>
+    </div>
+
+    <div class="bp-arrow"><div class="bp-line" style="background:#fb923c33"><div class="bp-dot" style="background:#fb923c"></div></div></div>
+
+    <div class="bp-step bp-s4" style="animation-delay:.65s">
+      <div class="bp-icon">🦆</div>
+      <div class="bp-text"><h3>Zero-Copy Warehouse</h3><p>MotherDuck reads S3 Parquet directly<br>No data copied — instant view over 10.2M rows</p></div>
+      <div class="bp-num">4</div>
+    </div>
+
+    <div class="bp-arrow"><div class="bp-line" style="background:#34d39933"><div class="bp-dot" style="background:#34d399"></div></div></div>
+
+    <div class="bp-step bp-s5" style="animation-delay:.8s">
+      <div class="bp-icon">⭐</div>
+      <div class="bp-text"><h3>Kimball Star Schema</h3><p>dbt builds dims + facts + 8 dashboard tables<br>Staging → Core → Pre-aggregated analytics</p></div>
+      <div class="bp-num">5</div>
+    </div>
+
+    <div class="bp-arrow"><div class="bp-line" style="background:#f472b633"><div class="bp-dot" style="background:#f472b6"></div></div></div>
+
+    <div class="bp-step bp-s6" style="animation-delay:.95s">
+      <div class="bp-icon"><img src="https://raw.githubusercontent.com/apache/superset/master/superset-frontend/src/assets/branding/superset-logo-horiz.svg"></div>
+      <div class="bp-text"><h3>Live Dashboard</h3><p>Superset with dark theme glassmorphism<br>KPIs + 8 interactive charts → insights</p></div>
+      <div class="bp-num">6</div>
+    </div>
+  </div>
+
+  <div class="ftr">
+    <div class="ft"><i style="background:#818cf8"></i>4 Airflow DAGs</div>
+    <div class="ft"><i style="background:#fb923c"></i>Spark 3.5</div>
+    <div class="ft"><i style="background:#60a5fa"></i>AWS S3</div>
+    <div class="ft"><i style="background:#34d399"></i>MotherDuck</div>
+    <div class="ft"><i style="background:#f472b6"></i>DBT Star Schema</div>
+    <div class="ft"><i style="background:#22d3ee"></i>Superset</div>
+    <div class="ft"><i style="background:#f59e0b"></i>8 Docker Services</div>
+  </div>
+</div>
+</body>
+</html>]]>
