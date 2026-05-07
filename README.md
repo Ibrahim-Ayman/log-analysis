@@ -63,7 +63,7 @@ This project builds a **production-grade, cloud-native Lakehouse** that processe
 | **Processing** | Apache Spark | 3.5 | Distributed CSV parsing, type casting, deduplication, hostname enrichment |
 | **Data Warehouse** | MotherDuck / DuckDB | latest | Serverless OLAP engine with zero-copy S3 views |
 | **Transformation** | dbt Core (dbt-duckdb) | — | Staging → Kimball Core → Dashboard aggregation layers |
-| **Visualization** | Apache Superset | latest | Interactive dashboard with custom dark-theme CSS |
+| **Visualization** | Apache Superset | latest | Interactive dashboard with custom white-theme CSS |
 | **Infrastructure** | Docker + Docker Compose | — | Reproducible, one-command environment for all services |
 
 ---
@@ -86,7 +86,7 @@ graph TD
 
     F -->|Kimball Star Schema| E
 
-    E -->|SQLAlchemy + duckdb-engine| G[📊 Apache Superset\nDark Theme Dashboard]
+    E -->|SQLAlchemy + duckdb-engine| G[📊 Apache Superset\nwhite Theme Dashboard]
 ```
 
 ### The Four DAGs
@@ -341,9 +341,9 @@ Access Superset at **http://localhost:8088**.
 
 ---
 
-### 🎨 Dashboard Customization — Applying the Dark Theme
+### 🎨 Dashboard Customization — Applying the white Theme
 
-The custom dark theme makes Superset's charts legible on dark backgrounds and gives the dashboard a premium, production-grade look.
+The custom white theme makes Superset's charts legible on white backgrounds and gives the dashboard a premium, production-grade look.
 
 **Step-by-step:**
 
@@ -388,7 +388,7 @@ The custom dark theme makes Superset's charts legible on dark backgrounds and gi
 
 6. Click **Save** then **Save dashboard**
 
-> **Tip:** For the full dark background, go to Superset's **Settings** → **Theme** and choose the dark variant, then apply the CSS above for fine-grained overrides.
+> **Tip:** For the full white background, go to Superset's **Settings** → **Theme** and choose the white variant, then apply the CSS above for fine-grained overrides.
 
 ---
 
@@ -447,7 +447,7 @@ log-analysis/
 │
 ├── Dashboard/
 │   ├── Dashboard.jpg            # Final dashboard screenshot
-│   └── nginx_css_used.css       # Dark theme CSS for Superset
+│   └── nginx_css_used.css       # theme CSS for Superset
 │
 ├── docker-compose.yml           # All 8 services with healthchecks + dependency ordering
 ├── .env.example                 # Template — copy to .env and fill in values
@@ -492,9 +492,9 @@ No manual database setup. No pre-installed Python packages. No OS-specific confi
   <br>
   <p>
     <b>Connect with me:</b><br>
-    <a href="https://www.linkedin.com/in/ibrahimayman10/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=white" alt="LinkedIn"/></a>
-    <a href="https://x.com/hema_aymen55"><img src="https://img.shields.io/badge/Twitter/X-000000?style=flat-square&logo=x&logoColor=white" alt="Twitter"/></a>
-    <a href="mailto:ebrahimaymenzaki55@gmail.com"><img src="https://img.shields.io/badge/Email-D14836?style=flat-square&logo=gmail&logoColor=white" alt="Email"/></a>
+    <a href="https://www.linkedin.com/in/ibrahimayman10/"><img src="https://img.shields.io/badge/LinkedIn-0077B5?style=flat-square&logo=linkedin&logoColor=dark" alt="LinkedIn"/></a>
+    <a href="https://x.com/hema_aymen55"><img src="https://img.shields.io/badge/Twitter/X-000000?style=flat-square&logo=x&logoColor=dark" alt="Twitter"/></a>
+    <a href="mailto:ebrahimaymenzaki55@gmail.com"><img src="https://img.shields.io/badge/Email-D14836?style=flat-square&logo=gmail&logoColor=dark" alt="Email"/></a>
   </p>
   <p><i>📞 Phone: +20-109-366-4870</i></p>
 </div>
